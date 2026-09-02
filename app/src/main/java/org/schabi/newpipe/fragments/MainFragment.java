@@ -136,7 +136,7 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
         // The activity nails the header down for every other fragment, so claim it back here
         final MainActivity mainActivity = getMainActivity();
         if (mainActivity != null) {
-            mainActivity.setHeaderCollapseEnabled(collapseHeader);
+            mainActivity.setHeaderCollapseEnabled(isHeaderCollapseEnabled());
         }
     }
 
@@ -249,8 +249,10 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
         final ScrollableTabLayout tabLayout = binding.mainTabLayout;
         final ViewPager viewPager = binding.pager;
         final boolean bottom = mainTabsPositionBottom;
-        // Tabs which are pinned to the bottom of the screen cannot be part of the header
-        final boolean tabsInAppBar = collapseHeader && !bottom && mainActivity != null;
+        // Tabs which are pinned to the bottom of the screen cannot be part of the header, and
+        // isHeaderCollapseEnabled() already excludes that case
+        final boolean collapseEnabled = isHeaderCollapseEnabled();
+        final boolean tabsInAppBar = collapseEnabled && mainActivity != null;
 
         final RelativeLayout.LayoutParams pagerParams =
                 (RelativeLayout.LayoutParams) viewPager.getLayoutParams();
@@ -287,8 +289,17 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
         tabLayout.setSelectedTabIndicatorColor(iconColor);
 
         if (mainActivity != null) {
-            mainActivity.setHeaderCollapseEnabled(collapseHeader);
+            mainActivity.setHeaderCollapseEnabled(collapseEnabled);
         }
+    }
+
+    /**
+     * The header may only collapse while the main tabs are at the top: the scrolling view behaviour
+     * of the app bar hands the fragment the full height of its parent, which would push a
+     * bottom-pinned tab strip off the screen for as long as the toolbar is expanded.
+     */
+    private boolean isHeaderCollapseEnabled() {
+        return collapseHeader && !mainTabsPositionBottom;
     }
 
     private void moveTabLayoutToAppBar(final AppBarLayout appBar) {
