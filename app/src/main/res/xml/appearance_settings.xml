@@ -105,4 +105,12 @@
         app:singleLineTitle="false"
         app:iconSpaceReserved="false" />
 
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:key="@string/collapse_header_on_scroll_key"
+        android:summary="@string/collapse_header_on_scroll_summary"
+        android:title="@string/collapse_header_on_scroll_title"
+        app:singleLineTitle="false"
+        app:iconSpaceReserved="false" />
+
 </PreferenceScreen>

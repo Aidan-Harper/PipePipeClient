@@ -63,6 +63,7 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
     private boolean mainTabsPositionBottom;
     private String mainTabsPositionKey;
     private boolean collapseHeader = true;
+    private String collapseHeaderKey;
 
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -89,6 +90,8 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
         prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
         mainTabsPositionKey = getString(R.string.main_tabs_position_key);
         mainTabsPositionBottom = prefs.getBoolean(mainTabsPositionKey, false);
+        collapseHeaderKey = getString(R.string.collapse_header_on_scroll_key);
+        collapseHeader = prefs.getBoolean(collapseHeaderKey, true);
 
     }
 
@@ -123,8 +126,10 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
         }
 
         final boolean newMainTabsPosition = prefs.getBoolean(mainTabsPositionKey, false);
-        if (mainTabsPositionBottom != newMainTabsPosition) {
+        final boolean newCollapseHeader = prefs.getBoolean(collapseHeaderKey, true);
+        if (mainTabsPositionBottom != newMainTabsPosition || collapseHeader != newCollapseHeader) {
             mainTabsPositionBottom = newMainTabsPosition;
+            collapseHeader = newCollapseHeader;
             updateHeaderLayout();
         }
 
