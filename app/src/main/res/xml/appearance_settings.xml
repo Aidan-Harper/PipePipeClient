@@ -102,6 +102,16 @@
         android:key="@string/main_tabs_position_key"
         android:summary="@string/main_tabs_position_summary"
         android:title="@string/main_tabs_position_title"
+        app:disableDependentsState="true"
+        app:singleLineTitle="false"
+        app:iconSpaceReserved="false" />
+
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:dependency="@string/main_tabs_position_key"
+        android:key="@string/collapse_header_on_scroll_key"
+        android:summary="@string/collapse_header_on_scroll_summary"
+        android:title="@string/collapse_header_on_scroll_title"
         app:singleLineTitle="false"
         app:iconSpaceReserved="false" />
 

@@ -1732,6 +1732,7 @@
     <string name="force_end_on_overtime_key">force_end_on_overtime</string>
     <string name="use_old_search_filter_key">use_old_search_filter</string>
     <string name="main_tabs_position_key">main_tabs_position</string>
+    <string name="collapse_header_on_scroll_key">collapse_header_on_scroll</string>
     <string name="disable_exoplayer_media_codec_async_queueing_key">disable_exoplayer_media_codec_async_queueing_key</string>
     <string name="auto_translated_subtitles_language_key">auto_translated_subtitles_language</string>
     <string-array name="auto_translated_subtitles_language_names">

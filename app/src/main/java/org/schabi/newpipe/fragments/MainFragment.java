@@ -19,6 +19,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.widget.RelativeLayout;
 
 import androidx.annotation.NonNull;
@@ -30,9 +31,11 @@ import androidx.fragment.app.FragmentStatePagerAdapterMenuWorkaround;
 import androidx.preference.PreferenceManager;
 import androidx.viewpager.widget.ViewPager;
 
+import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.tabs.TabLayout;
 
 import org.schabi.newpipe.BaseFragment;
+import org.schabi.newpipe.MainActivity;
 import org.schabi.newpipe.R;
 import org.schabi.newpipe.databinding.FragmentMainBinding;
 import org.schabi.newpipe.error.ErrorUtil;
@@ -59,6 +62,8 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
     private SharedPreferences prefs;
     private boolean mainTabsPositionBottom;
     private String mainTabsPositionKey;
+    private boolean collapseHeader = true;
+    private String collapseHeaderKey;
 
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -85,6 +90,8 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
         prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
         mainTabsPositionKey = getString(R.string.main_tabs_position_key);
         mainTabsPositionBottom = prefs.getBoolean(mainTabsPositionKey, false);
+        collapseHeaderKey = getString(R.string.collapse_header_on_scroll_key);
+        collapseHeader = prefs.getBoolean(collapseHeaderKey, true);
 
     }
 
@@ -107,7 +114,7 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
                 .withAlpha(32));
 
         setupTabs();
-        updateTabLayoutPosition();
+        updateHeaderLayout();
     }
 
     @Override
@@ -119,10 +126,31 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
         }
 
         final boolean newMainTabsPosition = prefs.getBoolean(mainTabsPositionKey, false);
-        if (mainTabsPositionBottom != newMainTabsPosition) {
+        final boolean newCollapseHeader = prefs.getBoolean(collapseHeaderKey, true);
+        if (mainTabsPositionBottom != newMainTabsPosition || collapseHeader != newCollapseHeader) {
             mainTabsPositionBottom = newMainTabsPosition;
-            updateTabLayoutPosition();
+            collapseHeader = newCollapseHeader;
+            updateHeaderLayout();
         }
+
+        // The activity nails the header down for every other fragment, so claim it back here
+        final MainActivity mainActivity = getMainActivity();
+        if (mainActivity != null) {
+            mainActivity.setHeaderCollapseEnabled(isHeaderCollapseEnabled());
+        }
+    }
+
+    @Override
+    public void onDestroyView() {
+        // The tab strip is a child of the activity's app bar while the header collapses, so it has
+        // to be handed back before this fragment's view hierarchy goes away
+        moveTabLayoutToFragmentRoot();
+        final MainActivity mainActivity = getMainActivity();
+        if (mainActivity != null) {
+            mainActivity.setHeaderCollapseEnabled(false);
+        }
+
+        super.onDestroyView();
     }
 
     @Override
@@ -209,24 +237,45 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
         setTitle(tabsList.get(tabPosition).getTabName(requireContext()));
     }
 
-    private void updateTabLayoutPosition() {
+    /**
+     * Places the tab strip and the pager according to the "main tabs position" and the "collapse
+     * header on scroll" preferences. When the tabs sit on top and the header may collapse, the tab
+     * strip is moved into the activity's app bar, so that it scrolls away together with the
+     * toolbar. In every other case it stays inside this fragment, exactly where the layout file
+     * puts it. Calling this repeatedly is harmless.
+     */
+    private void updateHeaderLayout() {
+        final MainActivity mainActivity = getMainActivity();
         final ScrollableTabLayout tabLayout = binding.mainTabLayout;
         final ViewPager viewPager = binding.pager;
         final boolean bottom = mainTabsPositionBottom;
+        // Tabs which are pinned to the bottom of the screen cannot be part of the header, and
+        // isHeaderCollapseEnabled() already excludes that case
+        final boolean collapseEnabled = isHeaderCollapseEnabled();
+        final boolean tabsInAppBar = collapseEnabled && mainActivity != null;
 
-        final RelativeLayout.LayoutParams tabParams =
-                (RelativeLayout.LayoutParams) tabLayout.getLayoutParams();
         final RelativeLayout.LayoutParams pagerParams =
                 (RelativeLayout.LayoutParams) viewPager.getLayoutParams();
 
-        tabParams.removeRule(bottom ? ALIGN_PARENT_TOP : ALIGN_PARENT_BOTTOM);
-        tabParams.addRule(bottom ? ALIGN_PARENT_BOTTOM : ALIGN_PARENT_TOP);
-        pagerParams.removeRule(bottom ? BELOW : ABOVE);
-        pagerParams.addRule(bottom ? ABOVE : BELOW, R.id.main_tab_layout);
+        if (tabsInAppBar) {
+            moveTabLayoutToAppBar(mainActivity.getMainAppBar());
+            // The pager fills the whole fragment, the header floats above it
+            pagerParams.removeRule(ABOVE);
+            pagerParams.removeRule(BELOW);
+        } else {
+            moveTabLayoutToFragmentRoot();
+
+            final RelativeLayout.LayoutParams tabParams =
+                    (RelativeLayout.LayoutParams) tabLayout.getLayoutParams();
+            tabParams.removeRule(bottom ? ALIGN_PARENT_TOP : ALIGN_PARENT_BOTTOM);
+            tabParams.addRule(bottom ? ALIGN_PARENT_BOTTOM : ALIGN_PARENT_TOP);
+            pagerParams.removeRule(bottom ? BELOW : ABOVE);
+            pagerParams.addRule(bottom ? ABOVE : BELOW, R.id.main_tab_layout);
+            tabLayout.setLayoutParams(tabParams);
+        }
+
         tabLayout.setSelectedTabIndicatorGravity(
                 bottom ? INDICATOR_GRAVITY_TOP : INDICATOR_GRAVITY_BOTTOM);
-
-        tabLayout.setLayoutParams(tabParams);
         viewPager.setLayoutParams(pagerParams);
 
         tabLayout.setBackgroundColor(ThemeHelper.resolveColorFromAttr(requireContext(),
@@ -238,6 +287,61 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
         tabLayout.setTabRippleColor(ColorStateList.valueOf(iconColor).withAlpha(32));
         tabLayout.setTabIconTint(ColorStateList.valueOf(iconColor));
         tabLayout.setSelectedTabIndicatorColor(iconColor);
+
+        if (mainActivity != null) {
+            mainActivity.setHeaderCollapseEnabled(collapseEnabled);
+        }
+    }
+
+    /**
+     * The header may only collapse while the main tabs are at the top: the scrolling view behaviour
+     * of the app bar hands the fragment the full height of its parent, which would push a
+     * bottom-pinned tab strip off the screen for as long as the toolbar is expanded.
+     */
+    private boolean isHeaderCollapseEnabled() {
+        return collapseHeader && !mainTabsPositionBottom;
+    }
+
+    private void moveTabLayoutToAppBar(final AppBarLayout appBar) {
+        final ScrollableTabLayout tabLayout = binding.mainTabLayout;
+        if (tabLayout.getParent() == appBar) {
+            return;
+        }
+        detachTabLayout();
+
+        final AppBarLayout.LayoutParams params = new AppBarLayout.LayoutParams(
+                AppBarLayout.LayoutParams.MATCH_PARENT,
+                AppBarLayout.LayoutParams.WRAP_CONTENT);
+        params.setScrollFlags(MainActivity.HEADER_SCROLL_FLAGS);
+        appBar.addView(tabLayout, appBar.getChildCount(), params);
+    }
+
+    private void moveTabLayoutToFragmentRoot() {
+        if (binding == null) {
+            return;
+        }
+        final ScrollableTabLayout tabLayout = binding.mainTabLayout;
+        final RelativeLayout root = binding.getRoot();
+        if (tabLayout.getParent() == root) {
+            return;
+        }
+        detachTabLayout();
+
+        root.addView(tabLayout, 0, new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT));
+    }
+
+    private void detachTabLayout() {
+        final ViewParent parent = binding.mainTabLayout.getParent();
+        if (parent instanceof ViewGroup) {
+            ((ViewGroup) parent).removeView(binding.mainTabLayout);
+        }
+    }
+
+    @Nullable
+    private MainActivity getMainActivity() {
+        return getActivity() instanceof MainActivity ? (MainActivity) getActivity() : null;
     }
 
     @Override
@@ -246,6 +350,12 @@ public class MainFragment extends BaseFragment implements TabLayout.OnTabSelecte
             Log.d(TAG, "onTabSelected() called with: selectedTab = [" + selectedTab + "]");
         }
         updateTitleForTab(selectedTab.getPosition());
+
+        // Every page starts with a visible header, no matter how far the previous one was scrolled
+        final MainActivity mainActivity = getMainActivity();
+        if (mainActivity != null) {
+            mainActivity.getMainAppBar().setExpanded(true, false);
+        }
     }
 
     @Override

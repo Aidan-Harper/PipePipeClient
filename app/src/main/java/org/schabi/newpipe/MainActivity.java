@@ -52,6 +52,7 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.preference.PreferenceManager;
 
+import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 
 import org.schabi.newpipe.databinding.ActivityMainBinding;
@@ -97,6 +98,14 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     @SuppressWarnings("ConstantConditions")
     public static final boolean DEBUG = !BuildConfig.BUILD_TYPE.equals("release");
+
+    /**
+     * The scroll flags every view of the collapsing main header has to use.
+     */
+    public static final int HEADER_SCROLL_FLAGS =
+            AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL
+                    | AppBarLayout.LayoutParams.SCROLL_FLAG_ENTER_ALWAYS
+                    | AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP;
 
     private ActivityMainBinding mainBinding;
     private DrawerHeaderBinding drawerHeaderBinding;
@@ -748,6 +757,12 @@ public class MainActivity extends AppCompatActivity {
         if (!(fragment instanceof SearchFragment)) {
             toolbarLayoutBinding.toolbarSearchContainer.getRoot().setVisibility(View.GONE);
         }
+        if (!(fragment instanceof MainFragment)) {
+            // Only the main page collapses its header. Everywhere else (search, channels,
+            // playlists, ...) the toolbar stays put, so that the search field living inside it and
+            // the up button are always reachable. MainFragment turns collapsing back on itself.
+            setHeaderCollapseEnabled(false);
+        }
 
         final ActionBar actionBar = getSupportActionBar();
         if (actionBar != null) {
@@ -798,6 +813,31 @@ public class MainActivity extends AppCompatActivity {
     /*//////////////////////////////////////////////////////////////////////////
     // Utils
     //////////////////////////////////////////////////////////////////////////*/
+
+    /**
+     * @return the app bar holding the toolbar, so that the hosted fragment can add its own header
+     *         views (e.g. the main page tab strip) to it
+     */
+    public AppBarLayout getMainAppBar() {
+        return mainBinding.mainAppBar;
+    }
+
+    /**
+     * Lets the header scroll off screen together with the content below it, or nails it to the top
+     * of the screen again. The header is always expanded first, so that it can never be left
+     * hidden by a fragment which does not support collapsing.
+     *
+     * @param enabled whether the header should collapse while scrolling down
+     */
+    public void setHeaderCollapseEnabled(final boolean enabled) {
+        mainBinding.mainAppBar.setExpanded(true, false);
+
+        final View toolbarRoot = toolbarLayoutBinding.getRoot();
+        final AppBarLayout.LayoutParams params =
+                (AppBarLayout.LayoutParams) toolbarRoot.getLayoutParams();
+        params.setScrollFlags(enabled ? HEADER_SCROLL_FLAGS : 0);
+        toolbarRoot.setLayoutParams(params);
+    }
 
     private void updateDrawerNavigation() {
         if (getSupportActionBar() == null) {
