@@ -20,6 +20,7 @@
             android:layout_height="wrap_content"
             android:background="?attr/colorPrimary"
             app:elevation="0dp"
+            app:layout_behavior="org.schabi.newpipe.views.MainAppBarBehavior"
             app:liftOnScroll="false">
 
             <include
